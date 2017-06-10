@@ -225,3 +225,12 @@
 #define SYM_PB_EMPTY 0x8D
 #define SYM_PB_END   0x8E
 #define SYM_PB_CLOSE 0x8F
+
+#define SYM_PBD_WARN    0xA3
+#define SYM_PBD_CRIT    0xA4
+#define SYM_PBD_START   0xA5
+#define SYM_PBD_CLOSE   0xB4
+#define SYM_PBD_END     0xB3
+#define SYM_PBD_EMPTY   0xA6
+#define SYM_PBD_FULL    0xB2
+

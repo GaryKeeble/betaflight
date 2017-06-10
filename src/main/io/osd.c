@@ -188,6 +188,54 @@ static void osdFormatPID(char * buff, const char * label, const pid8_t * pid)
     tfp_sprintf(buff, "%s %3d %3d %3d", label, pid->P, pid->I, pid->D);
 }
 
+/**
+ * Generates a filled bar for range.
+ * all values are passed as integers, for accuracy scale up the values by factor
+ * e.g. for a voltage 4.20v pass an integer x100, i.e. 420
+ * @param buff the output string
+ * @param currentValue the current bar value (x100)
+ * @param length the length of the bar in characters
+ * @param minimumValue the minimum value of the bar (x100)
+ * @param maximumValue the maximum value of the bar (x100)
+ * @param warningValue the warning value of the bar, the bar is shown differently up to the warning value, then it is solid up to the current value (x100)
+ */
+static void osdDrawProgressBar(char * buff, const int currentValue, uint8_t length, const int minimumValue, const int maximumValue, const int warningValue) {
+    /* A bar is made up of a start character, an end character then a variable number of center
+     * cell characters showing full, half or empty blocks.
+     * The minimum bar length is 3 characters; a start and end symbol with a single center cell
+     */
+
+    // Verify that the passed parameters are valid
+    if((length < 3) || (length > 30) || (maximumValue <=  minimumValue)) {
+        buff[0] = 0; // null terminator for string
+        return;
+    }
+
+    // Add the start and end of the bar
+    buff[length--] = 0; // null terminator for string
+    buff[0]        = SYM_PBD_START;
+    buff[length--] = SYM_PBD_CLOSE;
+
+    // Now fill the bar up to the current value
+    const int fill     = constrain((length * (currentValue - minimumValue)) / (maximumValue - minimumValue), 0, length);
+    const int fillWarn = constrain((length * (warningValue - minimumValue)) / (maximumValue - minimumValue), 0, length);
+
+    uint8_t x = 1;
+    for(uint8_t i=0; i < length; i++) { // scroll through each cell of the bar
+        if(i < fillWarn) { // when we are below the warning level, then the symbols used are whole character blocks
+            buff[x++] = (i < fill) ? SYM_PBD_WARN : SYM_PBD_CRIT;
+        } else {
+            if(i==fill) // calculate the actual symbol required for this cell of the bar
+            {
+                const int iFrom = minimumValue * 10 + ((i * ((maximumValue - minimumValue)*10)) / length);
+                const int iTo   = iFrom + (((maximumValue - minimumValue)*10) / length);
+                buff[x++] = SYM_PBD_EMPTY + constrain((((currentValue * 10 - iFrom) *  (SYM_PBD_FULL - SYM_PBD_EMPTY)) / (iTo - iFrom)), 0, SYM_PBD_FULL - SYM_PBD_EMPTY);
+            } else buff[x++] = (i < fill) ? SYM_PBD_FULL : SYM_PBD_EMPTY;
+        }
+    }
+    // if ((fill < length) && (buff[fill] == SYM_PBD_FULL)) buff[fill + 1] = SYM_PB_END;   // Add the end of bar line if not a full bar
+}
+
 static void osdDrawSingleElement(uint8_t item)
 {
     if (!VISIBLE(osdConfig()->item_pos[item]) || BLINK(item))
@@ -461,9 +509,12 @@ static void osdDrawSingleElement(uint8_t item)
 
     case OSD_AVG_CELL_VOLTAGE:
         {
+            const uint8_t CELL_BATT_USAGE_STEPS = (25 - elemPosX);
             const int cellV = osdGetBatteryAverageCellVoltage();
-            buff[0] = osdGetBatterySymbol(cellV);
-            tfp_sprintf(buff + 1, "%d.%02d%c", cellV / 100, cellV % 100, SYM_VOLT);
+
+            osdDrawProgressBar(buff, cellV, CELL_BATT_USAGE_STEPS, (batteryConfig()->vbatmincellvoltage * 10), 420, (batteryConfig()->vbatwarningcellvoltage * 10));
+
+            tfp_sprintf(buff + CELL_BATT_USAGE_STEPS, "%d.%02d%c", cellV / 100, cellV % 100, SYM_VOLT);
             break;
         }
 
@@ -482,29 +533,9 @@ static void osdDrawSingleElement(uint8_t item)
     case OSD_MAIN_BATT_USAGE:
         {
             //Set length of indicator bar
-            #define MAIN_BATT_USAGE_STEPS 11 // Use an odd number so the bar can be centralised.
+            #define MAIN_BATT_USAGE_STEPS 12 // Use an odd number so the bar can be centralised. (including open and closures)
 
-            //Calculate constrained value
-            float value = constrain(batteryConfig()->batteryCapacity - getMAhDrawn(), 0, batteryConfig()->batteryCapacity);
-
-            //Calculate mAh used progress
-            uint8_t mAhUsedProgress = ceil((value / (batteryConfig()->batteryCapacity / MAIN_BATT_USAGE_STEPS)));
-
-            //Create empty battery indicator bar
-            buff[0] = SYM_PB_START;
-            for(uint8_t i = 1; i <= MAIN_BATT_USAGE_STEPS; i++) {
-                if (i <= mAhUsedProgress)
-                    buff[i] = SYM_PB_FULL;
-                else
-                    buff[i] = SYM_PB_EMPTY;
-            }
-            buff[MAIN_BATT_USAGE_STEPS+1] = SYM_PB_CLOSE;
-
-            if (mAhUsedProgress > 0 && mAhUsedProgress < MAIN_BATT_USAGE_STEPS) {
-                buff[1+mAhUsedProgress] = SYM_PB_END;
-            }
-
-            buff[MAIN_BATT_USAGE_STEPS+2] = 0;
+            osdDrawProgressBar(buff, (batteryConfig()->batteryCapacity - getMAhDrawn()), MAIN_BATT_USAGE_STEPS, 0, batteryConfig()->batteryCapacity, batteryConfig()->batteryCapacity - osdConfig()->cap_alarm);
 
             break;
         }
@@ -648,8 +679,14 @@ static void osdDrawLogo(int x, int y)
     char fontOffset = 160;
     for (int row = 0; row < 4; row++) {
         for (int column = 0; column < 24; column++) {
-            if (fontOffset != 255) // FIXME magic number
-                displayWriteChar(osdDisplayPort, x + column, y + row, fontOffset++);
+            if (fontOffset != 255) { // FIXME magic number
+                if((fontOffset < 162) || (fontOffset > 183)) { // exclude characters 162 through 183 (as they are blank)
+                    displayWriteChar(osdDisplayPort, x + column, y + row, fontOffset++);
+                } else {
+                    displayWriteChar(osdDisplayPort, x + column, y + row, SYM_BLANK); // write blank character
+                    fontOffset++;
+                }
+            }
         }
     }
 }
