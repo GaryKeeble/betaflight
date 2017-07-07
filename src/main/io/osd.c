@@ -676,11 +676,11 @@ void pgResetFn_osdConfig(osdConfig_t *osdProfile)
 static void osdDrawLogo(int x, int y)
 {
     // display logo and help
-    char fontOffset = 160;
-    for (int row = 0; row < 4; row++) {
+    char fontOffset = 0xb8;
+    for (int row = 0; row < 3; row++) {
         for (int column = 0; column < 24; column++) {
             if (fontOffset != 255) { // FIXME magic number
-                if((fontOffset < 162) || (fontOffset > 183)) { // exclude characters 162 through 183 (as they are blank)
+                if((fontOffset < 0xbd) || (fontOffset > 0xcf)) { // exclude characters 189 through 207 (as they are blank)
                     displayWriteChar(osdDisplayPort, x + column, y + row, fontOffset++);
                 } else {
                     displayWriteChar(osdDisplayPort, x + column, y + row, SYM_BLANK); // write blank character

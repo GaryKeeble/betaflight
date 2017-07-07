@@ -226,11 +226,11 @@
 #define SYM_PB_END   0x8E
 #define SYM_PB_CLOSE 0x8F
 
-#define SYM_PBD_WARN    0xA3
-#define SYM_PBD_CRIT    0xA4
-#define SYM_PBD_START   0xA5
-#define SYM_PBD_CLOSE   0xB4
-#define SYM_PBD_END     0xB3
-#define SYM_PBD_EMPTY   0xA6
-#define SYM_PBD_FULL    0xB2
+#define SYM_PBD_WARN    0xBD
+#define SYM_PBD_CRIT    0xBE
+#define SYM_PBD_START   0xBF
+#define SYM_PBD_CLOSE   0xCE
+#define SYM_PBD_END     0xCD
+#define SYM_PBD_EMPTY   0xC0
+#define SYM_PBD_FULL    0xCC
 
