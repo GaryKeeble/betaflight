@@ -198,12 +198,31 @@ static void osdFormatPID(char * buff, const char * label, const pid8_t * pid)
  * @param minimumValue the minimum value of the bar (x100)
  * @param maximumValue the maximum value of the bar (x100)
  * @param warningValue the warning value of the bar, the bar is shown differently up to the warning value, then it is solid up to the current value (x100)
+ * @param direction the direction of the bar; false = horizontal; true = vertical; vertical bars need printing from the bottom up; horizontal bars can be printed as a string
  */
-static void osdDrawProgressBar(char * buff, const int currentValue, uint8_t length, const int minimumValue, const int maximumValue, const int warningValue) {
+static void osdDrawProgressBar(char * buff, const int currentValue, uint8_t length, const int minimumValue, const int maximumValue, const int warningValue, const bool direction) {
     /* A bar is made up of a start character, an end character then a variable number of center
      * cell characters showing full, half or empty blocks.
      * The minimum bar length is 3 characters; a start and end symbol with a single center cell
      */
+
+    uint8_t SYM_WARN    = SYM_PBD_WARN;
+    uint8_t SYM_CRIT    = SYM_PBD_CRIT;
+    uint8_t SYM_START   = SYM_PBD_START;
+    uint8_t SYM_CLOSE   = SYM_PBD_CLOSE;
+    //uint8_t SYM_END     = SYM_PBD_END;
+    uint8_t SYM_EMPTY   = SYM_PBD_EMPTY;
+    uint8_t SYM_FULL    = SYM_PBD_FULL;
+
+    if(direction) { // Is this a vertical bar ?
+        SYM_WARN    = SYM_PBV_WARN;
+        SYM_CRIT    = SYM_PBV_CRIT;
+        SYM_START   = SYM_PBV_START;
+        SYM_CLOSE   = SYM_PBV_CLOSE;
+        //SYM_END     = SYM_PBV_END;
+        SYM_EMPTY   = SYM_PBV_EMPTY;
+        SYM_FULL    = SYM_PBV_FULL;
+    }
 
     // Verify that the passed parameters are valid
     if((length < 3) || (length > 30) || (maximumValue <=  minimumValue)) {
@@ -212,9 +231,9 @@ static void osdDrawProgressBar(char * buff, const int currentValue, uint8_t leng
     }
 
     // Add the start and end of the bar
-    buff[length--] = 0; // null terminator for string
-    buff[0]        = SYM_PBD_START;
-    buff[length--] = SYM_PBD_CLOSE;
+    buff[--length--] = 0; // null terminator for string
+    buff[0]        = SYM_START;
+    buff[length--] = SYM_CLOSE;
 
     // Now fill the bar up to the current value
     const int fill     = constrain((length * (currentValue - minimumValue)) / (maximumValue - minimumValue), 0, length);
@@ -223,17 +242,35 @@ static void osdDrawProgressBar(char * buff, const int currentValue, uint8_t leng
     uint8_t x = 1;
     for(uint8_t i=0; i < length; i++) { // scroll through each cell of the bar
         if(i < fillWarn) { // when we are below the warning level, then the symbols used are whole character blocks
-            buff[x++] = (i < fill) ? SYM_PBD_WARN : SYM_PBD_CRIT;
+            buff[x++] = (i < fill) ? SYM_WARN : SYM_CRIT;
         } else {
             if(i==fill) // calculate the actual symbol required for this cell of the bar
             {
                 const int iFrom = minimumValue * 10 + ((i * ((maximumValue - minimumValue)*10)) / length);
                 const int iTo   = iFrom + (((maximumValue - minimumValue)*10) / length);
-                buff[x++] = SYM_PBD_EMPTY + constrain((((currentValue * 10 - iFrom) *  (SYM_PBD_FULL - SYM_PBD_EMPTY)) / (iTo - iFrom)), 0, SYM_PBD_FULL - SYM_PBD_EMPTY);
-            } else buff[x++] = (i < fill) ? SYM_PBD_FULL : SYM_PBD_EMPTY;
+                buff[x++] = SYM_EMPTY + constrain((((currentValue * 10 - iFrom) *  (SYM_FULL - SYM_EMPTY)) / (iTo - iFrom)), 0, SYM_FULL - SYM_EMPTY);
+            } else buff[x++] = (i < fill) ? SYM_FULL : SYM_EMPTY;
         }
     }
     // if ((fill < length) && (buff[fill] == SYM_PBD_FULL)) buff[fill + 1] = SYM_PB_END;   // Add the end of bar line if not a full bar
+}
+
+/**
+ * Print a string vertically from the bottom up!
+ * THIS SHOULD PROBABLY BE PART OF THE DISPLAY DRIVER
+ * @param instance is the displayport
+ * @param x,y is the bottom of the print
+ * @param s the output string
+ */
+static void displayWriteVertical(displayPort_t *instance, uint8_t x, uint8_t y, const char *s) {
+
+    int8_t elemPosY = y;
+
+    for (uint8_t i = 0; i < MAX_NAME_LENGTH; i++) {
+        displayWriteChar(instance, x, elemPosY--, s[i]);
+        if (s[i] == 0 || elemPosY < 0)
+            break;
+    }
 }
 
 static void osdDrawSingleElement(uint8_t item)
@@ -251,13 +288,18 @@ static void osdDrawSingleElement(uint8_t item)
     switch(item) {
     case OSD_RSSI_VALUE:
         {
-            uint16_t osdRssi = rssi * 100 / 1024; // change range
-            if (osdRssi >= 100)
-                osdRssi = 99;
 
-            buff[0] = SYM_RSSI;
-            tfp_sprintf(buff + 1, "%d", osdRssi);
-            break;
+            const uint8_t RSSI_STEPS = 7;
+
+            uint16_t osdRssi = rssi * 1000 / 1024; // change range
+            if (osdRssi >= 1000)
+                osdRssi = 999;
+
+            osdDrawProgressBar(buff, osdRssi, RSSI_STEPS, 0, 1000, osdConfig()->rssi_alarm * 10, true);
+            buff[0] = SYM_RSSI; // Overwrite bottom of bar with RSSI symbol
+            displayWriteVertical(osdDisplayPort, elemPosX, elemPosY, buff);
+            return;
+
         }
 
     case OSD_MAIN_BATT_VOLTAGE:
@@ -376,10 +418,15 @@ static void osdDrawSingleElement(uint8_t item)
         }
 
     case OSD_THROTTLE_POS:
-        buff[0] = SYM_THR;
-        buff[1] = SYM_THR1;
-        tfp_sprintf(buff + 2, "%d", (constrain(rcData[THROTTLE], PWM_RANGE_MIN, PWM_RANGE_MAX) - PWM_RANGE_MIN) * 100 / (PWM_RANGE_MAX - PWM_RANGE_MIN));
-        break;
+        {
+            const uint8_t THROTTLE_STEPS = 4;
+
+            osdDrawProgressBar(buff, (constrain(rcData[THROTTLE], PWM_RANGE_MIN, PWM_RANGE_MAX) - PWM_RANGE_MIN) * 1000 / (PWM_RANGE_MAX - PWM_RANGE_MIN), THROTTLE_STEPS, 0, 1000, 0, true);
+            buff[0] = SYM_THR; // Overwrite bottom of bar with throttle symbol
+            displayWriteVertical(osdDisplayPort, elemPosX, elemPosY, buff);
+            return;
+
+        }
 
 #if defined(VTX_COMMON)
     case OSD_VTX_CHANNEL:
@@ -515,7 +562,7 @@ static void osdDrawSingleElement(uint8_t item)
             const uint8_t CELL_BATT_USAGE_STEPS = (25 - elemPosX);
             const int cellV = osdGetBatteryAverageCellVoltage();
 
-            osdDrawProgressBar(buff, cellV, CELL_BATT_USAGE_STEPS, (batteryConfig()->vbatmincellvoltage * 10), 420, (batteryConfig()->vbatwarningcellvoltage * 10));
+            osdDrawProgressBar(buff, cellV, CELL_BATT_USAGE_STEPS, (batteryConfig()->vbatmincellvoltage * 10), 420, (batteryConfig()->vbatwarningcellvoltage * 10), false);
 
             tfp_sprintf(buff + CELL_BATT_USAGE_STEPS, "%d.%02d%c", cellV / 100, cellV % 100, SYM_VOLT);
             break;
@@ -538,7 +585,7 @@ static void osdDrawSingleElement(uint8_t item)
             //Set length of indicator bar
             #define MAIN_BATT_USAGE_STEPS 12 // Use an odd number so the bar can be centralised. (including open and closures)
 
-            osdDrawProgressBar(buff, (batteryConfig()->batteryCapacity - getMAhDrawn()), MAIN_BATT_USAGE_STEPS, 0, batteryConfig()->batteryCapacity, batteryConfig()->batteryCapacity - osdConfig()->cap_alarm);
+            osdDrawProgressBar(buff, (batteryConfig()->batteryCapacity - getMAhDrawn()), MAIN_BATT_USAGE_STEPS, 0, batteryConfig()->batteryCapacity, batteryConfig()->batteryCapacity - osdConfig()->cap_alarm, false);
 
             break;
         }
@@ -556,13 +603,10 @@ static void osdDrawSingleElement(uint8_t item)
         {
 
             // Draw Quad Symbol
-            displayWriteChar(osdDisplayPort, elemPosX +1, elemPosY, SYM_QUAD);
-            displayWriteChar(osdDisplayPort, elemPosX +1, elemPosY+1, SYM_QUAD+1);
-
-            displayWriteChar(osdDisplayPort, elemPosX +2, elemPosY+1, SYM_PBV_EMPTY + ((convertMotorToPct(0) * 18) / 1000)); // Motor 1
-            displayWriteChar(osdDisplayPort, elemPosX +2, elemPosY  , SYM_PBV_EMPTY + ((convertMotorToPct(1) * 18) / 1000)); // Motor 2
-            displayWriteChar(osdDisplayPort, elemPosX   , elemPosY+1, SYM_PBV_EMPTY + ((convertMotorToPct(2) * 18) / 1000)); // Motor 3
-            displayWriteChar(osdDisplayPort, elemPosX   , elemPosY  , SYM_PBV_EMPTY + ((convertMotorToPct(3) * 18) / 1000)); // Motor 4
+            tfp_sprintf(buff, "%c %c",SYM_PBV_CLOSE, SYM_PBV_CLOSE); displayWrite(osdDisplayPort, elemPosX, elemPosY++, buff);
+            tfp_sprintf(buff, "%c%c%c",SYM_PBV_EMPTY + ((convertMotorToPct(3) * 18) / 1000), SYM_QUAD  , SYM_PBV_EMPTY + ((convertMotorToPct(2) * 18) / 1000)); displayWrite(osdDisplayPort, elemPosX, elemPosY++, buff);
+            tfp_sprintf(buff, "%c%c%c",SYM_PBV_EMPTY + ((convertMotorToPct(2) * 18) / 1000), SYM_QUAD+1, SYM_PBV_EMPTY + ((convertMotorToPct(0) * 18) / 1000)); displayWrite(osdDisplayPort, elemPosX, elemPosY++, buff);
+            tfp_sprintf(buff, "%c %c",SYM_PBV_START, SYM_PBV_START); displayWrite(osdDisplayPort, elemPosX, elemPosY++, buff);
 
             return;
         }
