@@ -20,6 +20,7 @@
 #ifdef OSD
 #include "common/time.h"
 #include "config/parameter_group.h"
+#include "flight/mixer.h"
 
 #define VISIBLE_FLAG  0x0800
 #define VISIBLE(x)    (x & VISIBLE_FLAG)
@@ -58,6 +59,7 @@ typedef enum {
     OSD_MAIN_BATT_USAGE,
     OSD_ARMED_TIME,
     OSD_DISARMED,
+    OSD_MOTORS,
     OSD_ITEM_COUNT // MUST BE LAST
 } osd_items_e;
 

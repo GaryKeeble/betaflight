@@ -691,3 +691,8 @@ uint16_t convertMotorToExternal(uint16_t motorValue)
 
     return externalValue;
 }
+
+// Return a percentage value 0-1000 = 0-100.0% for motor current output
+uint16_t convertMotorToPct(uint8_t index) {
+    return constrain(((motor[index] - motorOutputLow) * 1000) / (motorOutputHigh - motorOutputLow), 0, 1000);
+}

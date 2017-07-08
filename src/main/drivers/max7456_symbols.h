@@ -21,6 +21,8 @@
 
 #pragma once
 
+#define SYM_END_OF_FONT 0xFF
+
 // Character Symbols
 #define SYM_BLANK 0x20
 
@@ -226,6 +228,7 @@
 #define SYM_PB_END   0x8E
 #define SYM_PB_CLOSE 0x8F
 
+//Define Horizontal Progress Bar
 #define SYM_PBD_WARN    0xBD
 #define SYM_PBD_CRIT    0xBE
 #define SYM_PBD_START   0xBF
@@ -233,4 +236,19 @@
 #define SYM_PBD_END     0xCD
 #define SYM_PBD_EMPTY   0xC0
 #define SYM_PBD_FULL    0xCC
+
+//Define Vertical Progress Bar
+#define SYM_PBV_WARN    0xA0
+#define SYM_PBV_CRIT    0xA1
+#define SYM_PBV_START   0xA2
+#define SYM_PBV_CLOSE   0xB7
+#define SYM_PBV_END     0xB6
+#define SYM_PBV_EMPTY   0xA3
+#define SYM_PBV_FULL    0xB5
+
+//Define User Logo start (Length 4 characters)
+#define SYM_USER_LOGO   0x8A
+
+//Define Quadcopter Symbol (Length 2 characters)
+#define SYM_QUAD        0x8E
 

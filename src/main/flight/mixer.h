@@ -143,3 +143,5 @@ void stopPwmAllMotors(void);
 bool isMotorProtocolDshot(void);
 uint16_t convertExternalToMotor(uint16_t externalValue);
 uint16_t convertMotorToExternal(uint16_t motorValue);
+uint16_t convertMotorToPct(uint8_t index);
+

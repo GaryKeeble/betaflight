@@ -320,7 +320,7 @@ static void osdDrawSingleElement(uint8_t item)
             tfp_sprintf(buff, "%c%d.%01d%c", alt < 0 ? '-' : ' ', abs(alt / 100), abs((alt % 100) / 10), osdGetAltitudeSymbol());
             break;
         }
-
+/*
     case OSD_ONTIME:
         {
             uint32_t seconds = micros() / 1000000;
@@ -328,7 +328,7 @@ static void osdDrawSingleElement(uint8_t item)
             tfp_sprintf(buff + 1, "%02d:%02d", seconds / 60, seconds % 60);
             break;
         }
-
+*/
     case OSD_FLYTIME:
         buff[0] = SYM_FLY_M;
         tfp_sprintf(buff + 1, "%02d:%02d", flyTime / 60, flyTime % 60);
@@ -359,9 +359,12 @@ static void osdDrawSingleElement(uint8_t item)
 
     case OSD_CRAFT_NAME:
         {
-            if (strlen(systemConfig()->name) == 0)
-                strcpy(buff, "CRAFT_NAME");
-            else {
+            if (strlen(systemConfig()->name) == 0) {
+                for (uint8_t i = 0; i < 4; i++) { // User logo string
+                    buff[i] = SYM_USER_LOGO + i;
+                }
+                buff[4] = 0; // End of string
+            } else {
                 for (uint8_t i = 0; i < MAX_NAME_LENGTH; i++) {
                     buff[i] = toupper((unsigned char)systemConfig()->name[i]);
                     if (systemConfig()->name[i] == 0)
@@ -548,6 +551,22 @@ static void osdDrawSingleElement(uint8_t item)
             return;
         }
 
+    case OSD_ONTIME:
+    case OSD_MOTORS:
+        {
+
+            // Draw Quad Symbol
+            displayWriteChar(osdDisplayPort, elemPosX +1, elemPosY, SYM_QUAD);
+            displayWriteChar(osdDisplayPort, elemPosX +1, elemPosY+1, SYM_QUAD+1);
+
+            displayWriteChar(osdDisplayPort, elemPosX +2, elemPosY+1, SYM_PBV_EMPTY + ((convertMotorToPct(0) * 18) / 1000)); // Motor 1
+            displayWriteChar(osdDisplayPort, elemPosX +2, elemPosY  , SYM_PBV_EMPTY + ((convertMotorToPct(1) * 18) / 1000)); // Motor 2
+            displayWriteChar(osdDisplayPort, elemPosX   , elemPosY+1, SYM_PBV_EMPTY + ((convertMotorToPct(2) * 18) / 1000)); // Motor 3
+            displayWriteChar(osdDisplayPort, elemPosX   , elemPosY  , SYM_PBV_EMPTY + ((convertMotorToPct(3) * 18) / 1000)); // Motor 4
+
+            return;
+        }
+
     default:
         return;
     }
@@ -653,6 +672,7 @@ void pgResetFn_osdConfig(osdConfig_t *osdProfile)
     osdProfile->item_pos[OSD_MAIN_BATT_USAGE] = OSD_POS(8, 12) | VISIBLE_FLAG;
     osdProfile->item_pos[OSD_ARMED_TIME] = OSD_POS(1, 2) | VISIBLE_FLAG;
     osdProfile->item_pos[OSD_DISARMED] = OSD_POS(10, 4) | VISIBLE_FLAG;
+    osdProfile->item_pos[OSD_MOTORS] = OSD_POS(1, 2) | VISIBLE_FLAG;
 
     osdProfile->enabled_stats[OSD_STAT_MAX_SPEED] = true;
     osdProfile->enabled_stats[OSD_STAT_MIN_BATTERY] = true;
@@ -676,10 +696,10 @@ void pgResetFn_osdConfig(osdConfig_t *osdProfile)
 static void osdDrawLogo(int x, int y)
 {
     // display logo and help
-    char fontOffset = 0xb8;
+    int fontOffset = 0xb8;
     for (int row = 0; row < 3; row++) {
         for (int column = 0; column < 24; column++) {
-            if (fontOffset != 255) { // FIXME magic number
+            if (fontOffset <= SYM_END_OF_FONT) {
                 if((fontOffset < 0xbd) || (fontOffset > 0xcf)) { // exclude characters 189 through 207 (as they are blank)
                     displayWriteChar(osdDisplayPort, x + column, y + row, fontOffset++);
                 } else {
