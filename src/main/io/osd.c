@@ -231,7 +231,7 @@ static void osdDrawProgressBar(char * buff, const int currentValue, uint8_t leng
     }
 
     // Add the start and end of the bar
-    buff[--length--] = 0; // null terminator for string
+    buff[length--] = 0; // null terminator for string
     buff[0]        = SYM_START;
     buff[length--] = SYM_CLOSE;
 
@@ -265,12 +265,10 @@ static void osdDrawProgressBar(char * buff, const int currentValue, uint8_t leng
 static void displayWriteVertical(displayPort_t *instance, uint8_t x, uint8_t y, const char *s) {
 
     int8_t elemPosY = y;
+    for (uint8_t i = 0; *(s+i); i++)
+        if (elemPosY >= 0) // Do not write over screen
+            displayWriteChar(instance, x, elemPosY--, s[i]);
 
-    for (uint8_t i = 0; i < MAX_NAME_LENGTH; i++) {
-        displayWriteChar(instance, x, elemPosY--, s[i]);
-        if (s[i] == 0 || elemPosY < 0)
-            break;
-    }
 }
 
 static void osdDrawSingleElement(uint8_t item)
